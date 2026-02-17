@@ -1,0 +1,46 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "domain-pilot",
+  "main": "src/index.ts",
+  "compatibility_date": "2025-01-01",
+  "ai": {
+    "binding": "AI"
+  },
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "DOMAIN_PILOT_AGENT",
+        "class_name": "DomainPilotAgent"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": [
+        "DomainPilotAgent"
+      ]
+    }
+  ],
+  "vectorize": [
+    {
+      "binding": "VECTORIZE",
+      "index_name": "domain-history-index"
+    }
+  ],
+  "workflows": [
+    {
+      "name": "domain-onboarding",
+      "binding": "DOMAIN_ONBOARDING_WORKFLOW",
+      "class_name": "DomainOnboardingWorkflow"
+    },
+    {
+      "name": "bulk-dns-update",
+      "binding": "BULK_DNS_UPDATE_WORKFLOW",
+      "class_name": "BulkDnsUpdateWorkflow"
+    }
+  ],
+  "observability": {
+    "enabled": true
+  }
+}
