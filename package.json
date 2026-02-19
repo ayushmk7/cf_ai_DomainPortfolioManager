@@ -1,24 +1,22 @@
 {
-  "name": "domain-pilot",
-  "version": "0.1.0",
+  "name": "domain-portfolio-manager",
   "private": true,
   "type": "module",
+  "workspaces": [
+    "frontend",
+    "backend"
+  ],
   "scripts": {
-    "dev": "wrangler dev",
-    "deploy": "wrangler deploy",
-    "typecheck": "tsc --noEmit",
-    "test": "vitest run"
-  },
-  "dependencies": {
-    "agents": "latest",
-    "ai": "latest",
-    "workers-ai-provider": "latest",
-    "zod": "latest"
+    "dev": "concurrently -n backend,frontend -c blue,green \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:frontend": "npm run dev -w domain-pilot-frontend",
+    "dev:backend": "npm run dev -w domain-pilot-backend",
+    "build": "npm run build -w domain-pilot-frontend && npm run typecheck -w domain-pilot-backend",
+    "test": "npm run test -w domain-pilot-backend"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "latest",
-    "typescript": "latest",
-    "vitest": "latest",
-    "wrangler": "latest"
+    "concurrently": "^9.1.0"
+  },
+  "dependencies": {
+    "firebase": "^12.9.0"
   }
 }

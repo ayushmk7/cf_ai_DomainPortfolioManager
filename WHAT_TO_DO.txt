@@ -1,0 +1,170 @@
+================================================================================
+  WHAT TO DO — Domain Portfolio Manager (fully working locally and deployed)
+================================================================================
+
+This file lists the steps to get the project fully working locally and on
+Vercel (frontend) and Cloudflare (backend). Do these in order.
+
+--------------------------------------------------------------------------------
+1. PREREQUISITES
+--------------------------------------------------------------------------------
+
+- Node.js 18+ and npm installed
+- A Cloudflare account (for backend: Workers, Durable Objects, Workers AI,
+  Vectorize, Workflows)
+- A Vercel account (for frontend deployment)
+- Git and this repo cloned
+
+--------------------------------------------------------------------------------
+2. LOCAL SETUP — Get it running on your machine
+--------------------------------------------------------------------------------
+
+(1) From the repo ROOT folder, install all dependencies:
+
+    npm install
+
+(2) Optional but recommended for backend: log in to Cloudflare (needed for
+    wrangler dev and deploy):
+
+    cd backend
+    npx wrangler login
+    cd ..
+
+(3) Create the Vectorize index (one-time; required for semantic search).
+    From repo root:
+
+    cd backend
+    npx wrangler vectorize create domain-history-index --dimensions 768 --metric cosine
+    cd ..
+
+    If you skip this, the backend still runs; semantic search will fall back
+    to SQL-only history.
+
+(4) Run both frontend and backend together:
+
+    npm run dev
+
+    - Frontend:  http://localhost:5173
+    - Backend:   http://localhost:8787
+
+    Or run them separately in two terminals:
+    - npm run dev:frontend   (frontend only)
+    - npm run dev:backend    (backend only)
+
+(5) For local dev, the frontend already has frontend/.env with
+    VITE_API_URL=http://localhost:8787. Do not commit frontend/.env; it is
+    gitignored. If you need a different local backend URL, edit
+    frontend/.env and set VITE_API_URL to that URL (no trailing slash).
+
+(6) Verify locally:
+    - Open http://localhost:5173 — you should see the DomainPilot UI.
+    - Open http://localhost:8787/health — you should see
+      {"ok":true,"service":"domain-pilot-backend"}.
+
+--------------------------------------------------------------------------------
+3. DEPLOY BACKEND (Cloudflare Workers)
+--------------------------------------------------------------------------------
+
+(0) One-time: claim your workers.dev subdomain (required before first deploy).
+    If you see error code 10063 "You need a workers.dev subdomain":
+    - Go to https://dash.cloudflare.com
+    - In the left sidebar, open Workers & Pages (or Workers).
+    - Open the Workers landing page. Cloudflare will prompt you to create
+      a workers.dev subdomain (e.g. yourname.workers.dev). Complete that
+      once; then deploy again.
+
+(1) From repo root:
+
+    cd backend
+    npm run deploy
+    cd ..
+
+(2) After deploy, wrangler prints your worker URL, e.g.:
+    https://domain-pilot.<your-subdomain>.workers.dev
+
+(3) Save this URL — you need it for the frontend (Vercel) env var.
+
+(4) Ensure you have enabled / bound in Cloudflare:
+    - Workers AI
+    - Durable Objects (DOMAIN_PILOT_AGENT)
+    - Vectorize (domain-history-index) — create if you haven’t (step 2.3)
+    - Workflows: domain-onboarding, bulk-dns-update
+
+    All of these are referenced in backend/wrangler.jsonc.
+
+--------------------------------------------------------------------------------
+4. DEPLOY FRONTEND (Vercel)
+--------------------------------------------------------------------------------
+
+(1) In Vercel: Import this repo (or connect your Git provider).
+
+(2) Set the project’s Root Directory to:  frontend
+
+(3) Add an environment variable:
+    Name:   VITE_API_URL
+    Value:  Your backend URL from step 3.2 (e.g. https://domain-pilot.<subdomain>.workers.dev)
+    No trailing slash.
+
+(4) Deploy. Vercel will run `npm run build` in the frontend folder and serve
+    the built app. Client-side routing is handled by vercel.json rewrites.
+
+(5) After deploy, add your Vercel app URL to the backend CORS allowlist if
+    you use a custom domain: in backend/src/index.ts, add your Vercel URL
+    (e.g. https://your-app.vercel.app) to the ALLOWED_ORIGINS array so the
+    browser can call the backend from the deployed frontend.
+
+--------------------------------------------------------------------------------
+5. VERIFY EVERYTHING IS FULLY WORKING
+--------------------------------------------------------------------------------
+
+Local:
+- npm run build     — frontend builds, backend typechecks
+- npm run test      — backend tests pass
+- npm run dev       — both apps start; frontend at :5173, backend at :8787
+- http://localhost:8787/health returns JSON with ok: true
+
+Production:
+- Vercel URL loads the DomainPilot UI.
+- Backend URL/health returns {"ok":true,"service":"domain-pilot-backend"}.
+- When you add API calls in the frontend (e.g. to /health or /agent), they
+  use import.meta.env.VITE_API_URL so they work against the deployed backend
+  when VITE_API_URL is set in Vercel.
+
+--------------------------------------------------------------------------------
+6. QUICK REFERENCE
+--------------------------------------------------------------------------------
+
+From repo root:
+
+  npm install              Install all workspace dependencies
+  npm run dev              Run frontend + backend (concurrently)
+  npm run dev:frontend     Run only frontend (Vite)
+  npm run dev:backend      Run only backend (Wrangler)
+  npm run build            Build frontend + typecheck backend
+  npm run test             Run backend tests
+
+Backend deploy:   cd backend && npm run deploy
+Frontend deploy:  Use Vercel with root directory = frontend, set VITE_API_URL
+
+--------------------------------------------------------------------------------
+7. TROUBLESHOOTING
+--------------------------------------------------------------------------------
+
+- "No matching version" / install errors: Check Node version (18+). Delete
+  node_modules and package-lock.json in root, then npm install again.
+
+- Backend dev fails (bindings): Run npx wrangler login in backend/. Create
+  the Vectorize index (step 2.3) if you use semantic search.
+
+- Deploy fails with "You need a workers.dev subdomain" (code 10063): Do
+  step 3.0 — open Cloudflare Dashboard → Workers & Pages → Workers
+  landing page and create your workers.dev subdomain once, then deploy again.
+
+- Frontend can’t reach backend in browser: CORS is configured in
+  backend/src/index.ts for localhost and *.vercel.app. For a custom
+  frontend domain, add it to ALLOWED_ORIGINS.
+
+- Vercel build fails: Ensure Root Directory is "frontend" and
+  VITE_API_URL is set if your app uses it at build time.
+
+================================================================================

@@ -1,29 +1,50 @@
-DomainPilot Backend
+# Domain Portfolio Manager
 
-Cloudflare Workers backend for DomainPilot (backend-only implementation).
+Monorepo: **frontend** (React, Vercel) and **backend** (Cloudflare Worker).
 
-Implemented backend modules
+## Structure
 
-- src/index.ts: Worker entrypoint and agent routing.
-- src/agent/DomainPilotAgent.ts: Durable Object agent core, tool execution, approvals, scheduling callbacks, health checks.
-- src/agent/db.ts: SQLite schema and query helpers.
-- src/agent/tools.ts: LLM tool definitions and validation contracts.
-- src/workflows: onboarding and bulk DNS workflow classes.
-- src/utils: domain, DNS, and date validation helpers.
+- **frontend/** — React app (Vite, Tailwind). Deploy to Vercel.
+- **backend/** — Cloudflare Worker (Durable Objects, Workflows, Vectorize). Deploy with Wrangler.
 
-Local setup
+## Local development
 
-- Install dependencies: npm install
-- Typecheck: npm run typecheck
-- Run tests: npm test
-- Start local worker: npm run dev
+1. Install dependencies (from repo root):
 
-Required Cloudflare bindings
+   ```bash
+   npm install
+   ```
 
-- AI (Workers AI)
-- DOMAIN_PILOT_AGENT (Durable Object)
-- VECTORIZE (domain-history-index)
-- DOMAIN_ONBOARDING_WORKFLOW (Workflow binding)
-- BULK_DNS_UPDATE_WORKFLOW (Workflow binding)
+2. Run both apps:
 
-All configured in wrangler.jsonc.
+   ```bash
+   npm run dev
+   ```
+
+   - Frontend: http://localhost:5173  
+   - Backend: http://localhost:8787  
+
+   Or run separately:
+
+   - `npm run dev:frontend` — Vite dev server  
+   - `npm run dev:backend` — Wrangler dev  
+
+3. Build and test:
+
+   - `npm run build` — build frontend and typecheck backend  
+   - `npm run test` — run backend tests  
+
+## Deployment
+
+- **Frontend (Vercel)**  
+  - Connect the repo to Vercel and set **Root Directory** to `frontend`.  
+  - Add env var: `VITE_API_URL` = your backend URL (e.g. `https://domain-pilot.<account>.workers.dev`).  
+
+- **Backend (Cloudflare)**  
+  - From project root: `cd backend && npm run deploy`  
+  - Or use your CI with Wrangler.  
+  - Required bindings: AI, DOMAIN_PILOT_AGENT, VECTORIZE, DOMAIN_ONBOARDING_WORKFLOW, BULK_DNS_UPDATE_WORKFLOW (see `backend/README.md`).  
+
+## Backend details
+
+See [backend/README.md](backend/README.md) for Cloudflare bindings, Vectorize setup, and local worker usage.
