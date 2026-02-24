@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Bell } from 'lucide-react';
 import { GlassPanel, EmptyState, cn } from '../components/shared';
-import { postTool } from '../api/client';
+import { getAlerts, postTool } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
+import { useOrg } from '../org/OrgContext';
 
 interface Alert {
   id: string;
@@ -15,19 +16,23 @@ interface Alert {
 
 export default function AlertsPage() {
   const { idToken } = useAuth();
+  const orgId = useOrg()?.selectedOrgId ?? null;
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    postTool('getAlerts', {}, idToken)
-      .then((res) => {
-        if (res.ok && Array.isArray(res.result)) {
-          setAlerts(res.result as Alert[]);
-        }
-      })
-      .catch(() => {})
+    getAlerts(idToken, undefined, orgId)
+      .then((res) => setAlerts(res.alerts ?? []))
+      .catch(() =>
+        postTool('getAlerts', {}, idToken, orgId)
+          .then((res) => {
+            const result = res.ok && res.result ? (res.result as { alerts?: Alert[] }) : null;
+            if (result?.alerts) setAlerts(result.alerts);
+          })
+          .catch(() => {})
+      )
       .finally(() => setLoading(false));
-  }, [idToken]);
+  }, [idToken, orgId]);
 
   return (
     <div className="flex flex-col gap-4">

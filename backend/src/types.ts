@@ -94,7 +94,8 @@ export interface Env {
   FIREBASE_WEB_API_KEY?: string;
   DATABASE_URL?: string;
   HYPERDRIVE?: Hyperdrive;
-  STRIPE_SECRET_KEY?: string;
-  STRIPE_WEBHOOK_SECRET?: string;
-  STRIPE_PRICE_ID?: string;
+  /** 32-byte hex (64 chars) or base64 for AES-256-GCM; encrypts provider credentials and API keys at rest. */
+  ENCRYPTION_KEY?: string;
+  /** WhoisXMLAPI key for WHOIS lookups (whoisserver/WhoisService). */
+  WHOIS_API_KEY?: string;
 }

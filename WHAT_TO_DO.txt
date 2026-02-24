@@ -56,10 +56,17 @@ Vercel (frontend) and Cloudflare (backend). Do these in order.
     gitignored. If you need a different local backend URL, edit
     frontend/.env and set VITE_API_URL to that URL (no trailing slash).
 
-(6) Verify locally:
+(6) Optional: set DATABASE_URL for persistent domain data (Neon Postgres).
+    In backend/.dev.vars (create if needed) add:
+      DATABASE_URL=postgresql://...your-neon-connection-string...
+    Or use wrangler secret put DATABASE_URL for production.
+    Migrations run on the first /health request.
+
+(7) Verify locally:
     - Open http://localhost:5173 — you should see the DomainPilot UI.
     - Open http://localhost:8787/health — you should see
-      {"ok":true,"service":"domain-pilot-backend"}.
+      {"ok":true,"service":"domain-pilot-backend","db":"ok"} (or "db":"unavailable" if no DATABASE_URL).
+    - Routes under /app require login; sign in to access dashboard, domains, chat.
 
 --------------------------------------------------------------------------------
 3. DEPLOY BACKEND (Cloudflare Workers)

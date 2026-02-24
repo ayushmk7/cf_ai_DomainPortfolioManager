@@ -3,6 +3,7 @@ import { Server, Search } from 'lucide-react';
 import { GlassPanel, Badge, EmptyState } from '../components/shared';
 import { postTool } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
+import { useOrg } from '../org/OrgContext';
 
 interface DnsRecord {
   id: string;
@@ -17,12 +18,13 @@ interface DnsRecord {
 
 export default function DnsPage() {
   const { idToken } = useAuth();
+  const orgId = useOrg()?.selectedOrgId ?? null;
   const [records, setRecords] = useState<DnsRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
 
   useEffect(() => {
-    postTool('queryDomains', {}, idToken)
+    postTool('queryDomains', {}, idToken, orgId)
       .then(async (res) => {
         const raw = res.ok && res.result ? (res.result as { domains?: { domain?: string; name?: string }[] }).domains : null;
         if (!Array.isArray(raw)) return;
@@ -31,7 +33,7 @@ export default function DnsPage() {
           const domainName = d.domain ?? d.name;
           if (!domainName) continue;
           try {
-            const dnsRes = await postTool('getDnsRecords', { domain: domainName }, idToken);
+            const dnsRes = await postTool('getDnsRecords', { domain: domainName }, idToken, orgId);
             const recs = dnsRes.ok && dnsRes.result ? (dnsRes.result as { records?: DnsRecord[] }).records : null;
             if (Array.isArray(recs)) allRecords.push(...recs);
           } catch {}
@@ -40,7 +42,7 @@ export default function DnsPage() {
       })
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, [idToken]);
+  }, [idToken, orgId]);
 
   const recordName = (r: DnsRecord) => r.subdomain ?? r.name ?? '';
   const filtered = records.filter(

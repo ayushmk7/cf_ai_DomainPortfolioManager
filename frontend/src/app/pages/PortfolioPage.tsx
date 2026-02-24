@@ -3,6 +3,7 @@ import { Briefcase, Globe } from 'lucide-react';
 import { GlassPanel, StatCard, ExpiringDomainRow, EmptyState, cn } from '../components/shared';
 import { getAgentState, postTool } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
+import { useOrg } from '../org/OrgContext';
 import { DEFAULT_DASHBOARD_STATS, type DashboardStats } from '../data/dashboardData';
 
 interface Domain {
@@ -25,6 +26,7 @@ function daysUntil(expiryDate: string | null): number | null {
 
 export default function PortfolioPage() {
   const { idToken } = useAuth();
+  const orgId = useOrg()?.selectedOrgId ?? null;
   const [stats, setStats] = useState<DashboardStats>(DEFAULT_DASHBOARD_STATS);
   const [domains, setDomains] = useState<Domain[]>([]);
   const [expiringDomains, setExpiringDomains] = useState<{ domain: string; days: number }[]>([]);
@@ -32,9 +34,9 @@ export default function PortfolioPage() {
 
   useEffect(() => {
     Promise.all([
-      getAgentState(idToken).catch(() => null),
-      postTool('queryDomains', {}, idToken).catch(() => null),
-      postTool('queryDomains', { filter: 'expiring_soon' }, idToken).catch(() => null),
+      getAgentState(idToken, orgId).catch(() => null),
+      postTool('queryDomains', {}, idToken, orgId).catch(() => null),
+      postTool('queryDomains', { filter: 'expiring_soon' }, idToken, orgId).catch(() => null),
     ]).then(([stateRes, domainsRes, expiringRes]) => {
       if (stateRes?.ok && stateRes.state) {
         setStats({
@@ -62,7 +64,7 @@ export default function PortfolioPage() {
       }
       setLoading(false);
     });
-  }, [idToken]);
+  }, [idToken, orgId]);
 
   return (
     <div className="flex flex-col gap-4">

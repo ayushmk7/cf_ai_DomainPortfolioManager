@@ -3,6 +3,7 @@ import { Radar, Send, Zap, Sparkles } from 'lucide-react';
 import { cn, GlassPanel, ChatMessage } from '../components/shared';
 import { getHealth, getAgentState, postChat, type ChatMessage as ApiChatMessage } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
+import { useOrg } from '../org/OrgContext';
 
 const WELCOME_MESSAGE =
   "Hi, I'm DomainPilot. Ask me to manage your domains or DNS — add domains, view records, check health, or get alerts.";
@@ -23,6 +24,7 @@ interface ChatMessageItem {
 
 export default function ChatPage() {
   const { idToken } = useAuth();
+  const orgId = useOrg()?.selectedOrgId ?? null;
   const [messages, setMessages] = useState<ChatMessageItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [inputValue, setInputValue] = useState('');
@@ -34,12 +36,12 @@ export default function ChatPage() {
     try {
       const health = await getHealth();
       if (!health.ok) { setReady(false); return; }
-      const agent = await getAgentState(idToken);
+      const agent = await getAgentState(idToken, orgId);
       setReady(agent.ok);
     } catch {
       setReady(false);
     }
-  }, [idToken]);
+  }, [idToken, orgId]);
 
   useEffect(() => {
     checkReadiness();
@@ -68,7 +70,7 @@ export default function ChatPage() {
       content: m.content,
     }));
 
-    postChat(apiMessages, idToken)
+    postChat(apiMessages, idToken, orgId)
       .then((res) => {
         if (res.ok && res.text) {
           setMessages((prev) => [...prev, { role: 'ai', content: res.text! }]);

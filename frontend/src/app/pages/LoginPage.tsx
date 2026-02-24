@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router';
+import { useNavigate, useLocation, Link } from 'react-router';
 import { Radar, Mail, Lock, User as UserIcon, AtSign, Eye, EyeOff, Check, X } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 
@@ -56,6 +56,8 @@ const PasswordStrength = ({ checks }: { checks: PasswordCheck }) => {
 export default function LoginPage() {
   const { signIn, signUp, signInWithGoogle, enabled } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const from = (location.state as { from?: string } | null)?.from ?? '/app';
 
   const [isSignUp, setIsSignUp] = useState(false);
   const [error, setError] = useState('');
@@ -87,7 +89,7 @@ export default function LoginPage() {
             Firebase is not configured. Set VITE_FIREBASE_* env variables to enable authentication.
           </p>
           <button
-            onClick={() => navigate('/app')}
+            onClick={() => navigate(from)}
             className="w-full py-3 rounded-xl bg-white text-black font-medium transition-all hover:scale-[1.02] active:scale-[0.98]"
           >
             Continue without auth
@@ -129,7 +131,7 @@ export default function LoginPage() {
       } else {
         await signIn(email, password);
       }
-      navigate('/app');
+      navigate(from, { replace: true });
     } catch (err: any) {
       const msg = err?.code === 'auth/email-already-in-use'
         ? 'An account with this email already exists'
@@ -149,7 +151,7 @@ export default function LoginPage() {
     setLoading(true);
     try {
       await signInWithGoogle();
-      navigate('/app');
+      navigate(from, { replace: true });
     } catch (err: any) {
       setError(err.message ?? 'Google sign-in failed');
     } finally {

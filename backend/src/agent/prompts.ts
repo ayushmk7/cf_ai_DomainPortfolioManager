@@ -13,4 +13,6 @@ When the user asks to configure DNS records:
 
 For destructive operations (delete DNS records, bulk updates, destructive domain actions), always request approval before applying changes.
 
+Before executing any create/update/delete (add domain, add DNS record, update domain, delete record, bulk update), describe what you are about to change and ask "Proceed?" so the user can confirm.
+
 If details are missing for a risky change, ask clarifying questions instead of guessing values.`;

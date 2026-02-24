@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
+import { useSearchParams, Link } from 'react-router';
 import { Globe, Plus, Search, Pencil } from 'lucide-react';
 import { GlassPanel, EmptyState, cn } from '../components/shared';
-import { postTool } from '../api/client';
+import { getDomains, postTool } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
+import { useOrg } from '../org/OrgContext';
 import {
   Dialog,
   DialogContent,
@@ -36,26 +38,46 @@ function isValidDomain(s: string): boolean {
   return DOMAIN_REGEX.test(normalizeDomain(s));
 }
 
-function fetchDomains(idToken: string | null | undefined): Promise<Domain[]> {
-  return postTool('queryDomains', {}, idToken)
-    .then((res) => {
-      const raw = res.ok && res.result ? (res.result as { domains?: unknown[] }).domains : null;
-      if (!Array.isArray(raw)) return [];
-      return raw.map((d: Record<string, unknown>) => ({
-        ...d,
-        name: (d.domain ?? d.name) as string,
-        id: d.id as string,
-        registrar: (d.registrar ?? null) as string | null,
-        expiry_date: (d.expiry_date ?? null) as string | null,
-        notes: (d.notes ?? null) as string | null,
-        status: (d.status ?? 'active') as string,
-      })) as Domain[];
-    })
+function fetchDomains(
+  idToken: string | null | undefined,
+  orgId?: string | null,
+  clientId?: string | null
+): Promise<Domain[]> {
+  return getDomains(idToken, undefined, orgId, clientId)
+    .then((res) =>
+      (res.domains ?? []).map((d) => ({
+        id: d.id,
+        name: d.domain,
+        domain: d.domain,
+        registrar: d.registrar,
+        expiry_date: d.expiry_date,
+        notes: d.notes,
+        status: d.status,
+      }))
+    )
+    .catch(() =>
+      postTool('queryDomains', {}, idToken, orgId).then((res) => {
+        const raw = res.ok && res.result ? (res.result as { domains?: unknown[] }).domains : null;
+        if (!Array.isArray(raw)) return [];
+        return raw.map((d: Record<string, unknown>) => ({
+          ...d,
+          name: (d.domain ?? d.name) as string,
+          id: d.id as string,
+          registrar: (d.registrar ?? null) as string | null,
+          expiry_date: (d.expiry_date ?? null) as string | null,
+          notes: (d.notes ?? null) as string | null,
+          status: (d.status ?? 'active') as string,
+        })) as Domain[];
+      })
+    )
     .catch(() => []);
 }
 
 export default function DomainsPage() {
   const { idToken } = useAuth();
+  const orgId = useOrg()?.selectedOrgId ?? null;
+  const [searchParams] = useSearchParams();
+  const clientIdFromUrl = searchParams.get('clientId') || null;
   const [domains, setDomains] = useState<Domain[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -78,14 +100,14 @@ export default function DomainsPage() {
 
   const loadDomains = () => {
     setLoading(true);
-    fetchDomains(idToken)
+    fetchDomains(idToken, orgId, clientIdFromUrl)
       .then(setDomains)
       .finally(() => setLoading(false));
   };
 
   useEffect(() => {
     loadDomains();
-  }, [idToken]);
+  }, [idToken, orgId, clientIdFromUrl]);
 
   const handleAddDomain = () => {
     setAddError('');
@@ -106,7 +128,7 @@ export default function DomainsPage() {
       expiryDate: addExpiryDate.trim() || undefined,
       notes: addNotes.trim() || undefined,
     };
-    postTool('addDomain', params, idToken)
+    postTool('addDomain', params, idToken, orgId)
       .then((res) => {
         if (res.ok) {
           setAddOpen(false);
@@ -144,7 +166,7 @@ export default function DomainsPage() {
       notes: editNotes.trim() || null,
       status: editStatus,
     };
-    postTool('updateDomain', params, idToken)
+    postTool('updateDomain', params, idToken, orgId)
       .then((res) => {
         if (res.ok) {
           setEditOpen(false);
@@ -403,7 +425,11 @@ export default function DomainsPage() {
             <tbody className="divide-y divide-white/5">
               {filtered.map((d) => (
                 <tr key={d.id} className="hover:bg-white/[0.03] transition-colors">
-                  <td className="px-5 py-3 font-mono text-white/90">{d.name}</td>
+                  <td className="px-5 py-3">
+                    <Link to={`/app/domains/${d.id}`} className="font-mono text-white/90 hover:text-white hover:underline">
+                      {d.name}
+                    </Link>
+                  </td>
                   <td className="px-5 py-3 text-white/60">{d.registrar ?? '—'}</td>
                   <td className="px-5 py-3 text-white/60 font-mono text-xs">
                     {d.expiry_date ?? '—'}

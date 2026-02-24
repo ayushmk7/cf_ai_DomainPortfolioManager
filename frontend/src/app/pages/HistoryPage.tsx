@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { History, Search } from 'lucide-react';
 import { GlassPanel, Badge, EmptyState } from '../components/shared';
-import { postTool } from '../api/client';
+import { getHistory, postTool } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
+import { useOrg } from '../org/OrgContext';
 
 interface HistoryEntry {
   id: string;
@@ -18,31 +19,36 @@ interface HistoryEntry {
 
 export default function HistoryPage() {
   const { idToken } = useAuth();
+  const orgId = useOrg()?.selectedOrgId ?? null;
   const [entries, setEntries] = useState<HistoryEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
 
   useEffect(() => {
-    postTool('queryDomains', {}, idToken)
-      .then(async (res) => {
-        const raw = res.ok && res.result ? (res.result as { domains?: { domain?: string; name?: string }[] }).domains : null;
-        if (!Array.isArray(raw)) return;
-        const all: HistoryEntry[] = [];
-        for (const d of raw.slice(0, 20)) {
-          const domainName = d.domain ?? d.name;
-          if (!domainName) continue;
-          try {
-            const hRes = await postTool('getDnsHistory', { domain: domainName }, idToken);
-            const history = hRes.ok && hRes.result ? (hRes.result as { history?: HistoryEntry[] }).history : null;
-            if (Array.isArray(history)) all.push(...history);
-          } catch {}
-        }
-        all.sort((a, b) => new Date(b.changed_at).getTime() - new Date(a.changed_at).getTime());
-        setEntries(all);
-      })
-      .catch(() => {})
+    getHistory(idToken, 100, orgId)
+      .then((res) => setEntries(res.history ?? []))
+      .catch(() =>
+        postTool('queryDomains', {}, idToken, orgId)
+          .then(async (res) => {
+            const raw = res.ok && res.result ? (res.result as { domains?: { domain?: string; name?: string }[] }).domains : null;
+            if (!Array.isArray(raw)) return;
+            const all: HistoryEntry[] = [];
+            for (const d of raw.slice(0, 20)) {
+              const domainName = d.domain ?? d.name;
+              if (!domainName) continue;
+              try {
+                const hRes = await postTool('getDnsHistory', { domain: domainName }, idToken, orgId);
+                const history = hRes.ok && hRes.result ? (hRes.result as { history?: HistoryEntry[] }).history : null;
+                if (Array.isArray(history)) all.push(...history);
+              } catch {}
+            }
+            all.sort((a, b) => new Date(b.changed_at).getTime() - new Date(a.changed_at).getTime());
+            setEntries(all);
+          })
+          .catch(() => {})
+      )
       .finally(() => setLoading(false));
-  }, [idToken]);
+  }, [idToken, orgId]);
 
   const filtered = entries.filter(
     (e) =>

@@ -5,8 +5,9 @@ Cloudflare Workers backend for DomainPilot.
 Implemented backend modules
 
 - src/index.ts: Worker entrypoint and agent routing.
-- src/agent/DomainPilotAgent.ts: Durable Object agent core, tool execution, approvals, scheduling callbacks, health checks.
-- src/agent/db.ts: SQLite schema and query helpers.
+- src/agent/DomainPilotAgent.ts: Durable Object agent core, tool execution, approvals, scheduling callbacks, health checks. All domain/DNS/alert data is read from Postgres via src/agent/db-pg.ts when DATABASE_URL is set.
+- src/agent/db-pg.ts: Postgres-backed data layer for the agent (scoped by user and org).
+- src/agent/db.ts: Legacy SQLite helpers for development without Postgres (deprecated; production requires Postgres).
 - src/agent/tools.ts: LLM tool definitions and validation contracts.
 - src/workflows: onboarding and bulk DNS workflow classes.
 - src/utils: domain, DNS, and date validation helpers.
@@ -25,11 +26,16 @@ First-time deploy (workers.dev subdomain)
   landing page; Cloudflare will prompt you to create a subdomain (e.g.
   yourname.workers.dev). After that, npm run deploy will succeed.
 
-Per-user data (domains, DNS, history)
+Per-user and org data (domains, DNS, history)
 
-- Each signed-in user has their own isolated data. The backend uses the Firebase id token (sent as Authorization: Bearer &lt;token&gt;) to resolve the user id and routes requests to that user’s Durable Object. Domains and DNS are stored per user inside the Durable Object (SQLite), not in Postgres.
-- For per-user isolation to work you must set FIREBASE_WEB_API_KEY (Firebase project → Project settings → General → Web API Key). Set it as a Wrangler secret: npx wrangler secret put FIREBASE_WEB_API_KEY
-- If FIREBASE_WEB_API_KEY is not set, all unauthenticated traffic is treated as a single “anonymous” user and shares one DB.
+- Each signed-in user has their own isolated data. The backend uses the Firebase id token (sent as Authorization: Bearer &lt;token&gt;) to resolve the user id and routes requests to that user’s Durable Object. When Postgres is configured, domains, DNS, history, and alerts are stored in Postgres and scoped by user; the agent and REST APIs use this data. Production uses Postgres only for domain data (no Durable Object SQLite).
+- For per-user isolation set FIREBASE_WEB_API_KEY (Firebase project → Project settings → General → Web API Key). Set it as a Wrangler secret: npx wrangler secret put FIREBASE_WEB_API_KEY
+- If FIREBASE_WEB_API_KEY is not set, all unauthenticated traffic is treated as a single “anonymous” user . /app and /agent require login when Postgres is configured; unauthenticated requests receive 401.
+
+Database and migrations
+
+- Set DATABASE_URL (or HYPERDRIVE) as a Wrangler secret in production; do not put the connection string in wrangler.jsonc. Example: npx wrangler secret put DATABASE_URL
+- Migrations run automatically on the first request (e.g. /health). Schema is tracked in schema_migrations. Migrations 001–002: users, domain data. 003: organizations, org_memberships, clients, provider_connections, whois_cache, ssl_checks, sync_logs, org columns. 004: org_invitations. 005: notifications. SQL is in backend/src/db/pg.ts (mirrors backend/migrations/*.sql).
 
 Optional environment variables
 
@@ -37,7 +43,9 @@ Optional environment variables
   Workers AI / Llama. Set it as a Wrangler secret:
   npx wrangler secret put OPENAI_API_KEY
 - FIREBASE_WEB_API_KEY: Required for per-user auth (see above).
-- DATABASE_URL (or HYPERDRIVE): Optional. Postgres is used only for users and Stripe subscriptions (billing), not for domains or DNS. You only need Postgres if you use Stripe subscription features. No Postgres API key is required for domain/DNS storage.
+- DATABASE_URL (or HYPERDRIVE): When set, domains, DNS, history, and alerts are stored in Postgres and scoped by user. Required for production. Set as a Wrangler secret.
+- ENCRYPTION_KEY: 32-byte hex (64 chars) or base64 for AES-256-GCM; encrypts provider credentials at rest. Set as a Wrangler secret for production.
+- WHOIS_API_KEY: WhoisXMLAPI key for WHOIS lookups (whoisserver/WhoisService). When set, WHOIS data is fetched and cached.
 
 Required Cloudflare bindings
 

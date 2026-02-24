@@ -1,27 +1,7 @@
 import { streamText } from "ai";
 import { createWorkersAI } from "workers-ai-provider";
-import {
-  countDomains,
-  countExpiringSoon,
-  deleteDnsRecordById,
-  ensureTablesExist,
-  findDnsRecord,
-  getDnsHistory,
-  getDnsRecordsForDomain,
-  getDomainByName,
-  insertChangeLog,
-  insertDomain,
-  insertScheduledAlert,
-  listAlerts,
-  listDomains,
-  markAlertSent,
-  queryDomains as queryDomainsDb,
-  recentChanges,
-  updateDomain as updateDomainDb,
-  upsertDnsRecord,
-  type ScheduledAlertRecord,
-  type SqlExecutor,
-} from "./db";
+import * as dbPg from "./db-pg";
+import { isPostgresConfigured } from "../db/pg";
 import { createToolset } from "./tools";
 import { DOMAIN_MANAGER_SYSTEM_PROMPT } from "./prompts";
 import type {
@@ -29,6 +9,7 @@ import type {
   ChangeLogEntry,
   DomainOnboardingInput,
   DomainPilotState,
+  DnsRecord,
   DnsRecordType,
   Env,
   HealthReport,
@@ -44,6 +25,178 @@ type ApprovalResolve = (approved: boolean) => void;
 type Toolset = ReturnType<typeof createToolset>;
 type ChatMessage = { role: "user" | "assistant" | "system"; content: string };
 
+const PG_USER_ID_HEADER = "X-PG-User-Id";
+const ORG_ID_HEADER = "X-Org-Id";
+
+const MAX_TOOL_ITERATIONS = 10;
+
+/** OpenAI-format tool definitions for function calling. */
+function getOpenAITools(): { type: "function"; function: { name: string; description: string; parameters: object } }[] {
+  return [
+    {
+      type: "function",
+      function: {
+        name: "addDomain",
+        description: "Add a new domain to the portfolio",
+        parameters: {
+          type: "object",
+          properties: {
+            domain: { type: "string" },
+            registrar: { type: "string" },
+            expiryDate: { type: "string" },
+            notes: { type: "string" },
+          },
+          required: ["domain"],
+        },
+      },
+    },
+    {
+      type: "function",
+      function: {
+        name: "updateDomain",
+        description: "Update an existing domain's metadata (registrar, expiry date, notes, status)",
+        parameters: {
+          type: "object",
+          properties: {
+            domain: { type: "string" },
+            registrar: { type: "string" },
+            expiryDate: { type: "string" },
+            notes: { type: "string" },
+            status: { type: "string", enum: ["active", "parked", "for_sale", "expired"] },
+          },
+          required: ["domain"],
+        },
+      },
+    },
+    {
+      type: "function",
+      function: {
+        name: "addDnsRecord",
+        description: "Add or update a DNS record",
+        parameters: {
+          type: "object",
+          properties: {
+            domain: { type: "string" },
+            subdomain: { type: "string" },
+            type: { type: "string", enum: ["A", "AAAA", "CNAME", "MX", "TXT", "NS", "SRV", "CAA"] },
+            value: { type: "string" },
+            ttl: { type: "number" },
+            priority: { type: "number" },
+          },
+          required: ["domain", "type", "value"],
+        },
+      },
+    },
+    {
+      type: "function",
+      function: {
+        name: "deleteDnsRecord",
+        description: "Delete a DNS record (approval required)",
+        parameters: {
+          type: "object",
+          properties: {
+            domain: { type: "string" },
+            subdomain: { type: "string" },
+            type: { type: "string", enum: ["A", "AAAA", "CNAME", "MX", "TXT", "NS", "SRV", "CAA"] },
+          },
+          required: ["domain", "type"],
+        },
+      },
+    },
+    {
+      type: "function",
+      function: {
+        name: "queryDomains",
+        description: "Query and filter domains",
+        parameters: {
+          type: "object",
+          properties: {
+            query: { type: "string" },
+            filter: { type: "string", enum: ["all", "expiring_soon", "ssl_issues", "inactive"] },
+            registrar: { type: "string" },
+          },
+        },
+      },
+    },
+    {
+      type: "function",
+      function: {
+        name: "getDnsRecords",
+        description: "Retrieve DNS records for a domain",
+        parameters: {
+          type: "object",
+          properties: { domain: { type: "string" }, recordType: { type: "string" } },
+          required: ["domain"],
+        },
+      },
+    },
+    {
+      type: "function",
+      function: {
+        name: "getDnsHistory",
+        description: "Get DNS change history",
+        parameters: {
+          type: "object",
+          properties: {
+            domain: { type: "string" },
+            recordType: { type: "string" },
+            limit: { type: "number" },
+          },
+          required: ["domain"],
+        },
+      },
+    },
+    {
+      type: "function",
+      function: {
+        name: "searchHistory",
+        description: "Semantic search over history",
+        parameters: { type: "object", properties: { query: { type: "string" } }, required: ["query"] },
+      },
+    },
+    {
+      type: "function",
+      function: {
+        name: "checkDomainHealth",
+        description: "Run domain health checks",
+        parameters: { type: "object", properties: { domain: { type: "string" } }, required: ["domain"] },
+      },
+    },
+    {
+      type: "function",
+      function: {
+        name: "bulkUpdate",
+        description: "Plan and execute bulk DNS updates (approval required)",
+        parameters: {
+          type: "object",
+          properties: { description: { type: "string" }, domains: { type: "array", items: { type: "string" } } },
+          required: ["description"],
+        },
+      },
+    },
+    {
+      type: "function",
+      function: {
+        name: "getAlerts",
+        description: "List scheduled and sent alerts",
+        parameters: { type: "object", properties: { limit: { type: "number" } } },
+      },
+    },
+    {
+      type: "function",
+      function: {
+        name: "handleApprovalResponse",
+        description: "Resolve a pending approval request",
+        parameters: {
+          type: "object",
+          properties: { approvalId: { type: "string" }, approved: { type: "boolean" } },
+          required: ["approvalId", "approved"],
+        },
+      },
+    },
+  ];
+}
+
 const DEFAULT_STATE: DomainPilotState = {
   domainCount: 0,
   domainsExpiringSoon: 0,
@@ -58,6 +211,10 @@ export class DomainPilotAgent {
   private stateData: DomainPilotState = { ...DEFAULT_STATE };
   private initialized = false;
   private readonly tools: Toolset;
+  /** Set from request header; used to scope Postgres queries when present. */
+  private pgUserId: string | null = null;
+  /** Set from request header (X-Org-Id); used for org-scoped queries. */
+  private pgOrgId: string | null = null;
 
   constructor(
     private readonly state: DurableObjectState,
@@ -66,13 +223,19 @@ export class DomainPilotAgent {
     this.tools = createToolset(this);
   }
 
-  private get sql(): SqlExecutor {
-    return this.state.storage.sql as unknown as SqlExecutor;
+  private usePg(): boolean {
+    return this.pgUserId !== null && isPostgresConfigured(this.env);
+  }
+
+  /** Throws if Postgres is not configured; use for all domain/DNS/alert data operations. */
+  private requirePg(): void {
+    if (!this.usePg()) {
+      throw new Error("Postgres is required for domain data. Please sign in and ensure DATABASE_URL is set.");
+    }
   }
 
   private async loadState(): Promise<void> {
     if (this.initialized) return;
-    ensureTablesExist(this.sql);
     const saved = await this.state.storage.get<DomainPilotState>("agent_state");
     this.stateData = saved ?? { ...DEFAULT_STATE };
     this.initialized = true;
@@ -91,6 +254,8 @@ export class DomainPilotAgent {
   }
 
   async fetch(request: Request): Promise<Response> {
+    this.pgUserId = request.headers.get(PG_USER_ID_HEADER);
+    this.pgOrgId = request.headers.get(ORG_ID_HEADER);
     await this.loadState();
     const url = new URL(request.url);
 
@@ -156,54 +321,125 @@ export class DomainPilotAgent {
 
   private async chatViaOpenAI(messages: ChatMessage[]): Promise<string> {
     const apiKey = this.env.OPENAI_API_KEY!;
-    const body = {
-      model: "gpt-4o-mini",
-      messages: [
-        { role: "system" as const, content: DOMAIN_MANAGER_SYSTEM_PROMPT },
-        ...messages,
-      ],
-    };
-    const res = await withRetry(async () => {
-      const r = await fetch("https://api.openai.com/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify(body),
-      });
-      if (!r.ok) {
-        const err = await r.text();
-        throw new Error(`OpenAI API error ${r.status}: ${err}`);
+    const tools = getOpenAITools();
+    type OpenAIMessage =
+      | { role: "system"; content: string }
+      | { role: "user"; content: string }
+      | { role: "assistant"; content: string | null; tool_calls?: { id: string; type: "function"; function: { name: string; arguments: string } }[] }
+      | { role: "tool"; tool_call_id: string; content: string };
+
+    let conversation: OpenAIMessage[] = [
+      { role: "system", content: DOMAIN_MANAGER_SYSTEM_PROMPT },
+      ...messages.map((m) => ({ role: m.role as "user" | "assistant", content: m.content })),
+    ];
+
+    for (let iter = 0; iter < MAX_TOOL_ITERATIONS; iter++) {
+      const body: Record<string, unknown> = {
+        model: "gpt-4o-mini",
+        messages: conversation,
+      };
+      if (tools.length > 0) {
+        body.tools = tools;
+        body.tool_choice = "auto";
       }
-      return r;
-    });
-    const data = (await res.json()) as { choices: { message: { content: string } }[] };
-    return data.choices[0]?.message?.content ?? "No response from OpenAI.";
+
+      const res = await withRetry(async () => {
+        const r = await fetch("https://api.openai.com/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${apiKey}`,
+          },
+          body: JSON.stringify(body),
+        });
+        if (!r.ok) {
+          const err = await r.text();
+          throw new Error(`OpenAI API error ${r.status}: ${err}`);
+        }
+        return r;
+      });
+      const data = (await res.json()) as {
+        choices: { message: { content: string | null; tool_calls?: { id: string; type: string; function: { name: string; arguments: string } }[] } }[];
+      };
+      const choice = data.choices?.[0]?.message;
+      if (!choice) return "No response from OpenAI.";
+
+      const assistantContent = choice.content ?? null;
+      const toolCalls = choice.tool_calls;
+
+      if (!toolCalls || toolCalls.length === 0) {
+        return assistantContent ?? "Done.";
+      }
+
+      conversation.push({
+        role: "assistant",
+        content: assistantContent,
+        tool_calls: toolCalls.map((tc) => ({ id: tc.id, type: "function" as const, function: tc.function })),
+      });
+
+      for (const tc of toolCalls) {
+        const toolName = tc.function.name;
+        const tool = this.tools[toolName as keyof Toolset];
+        let toolResult: string;
+        if (!tool) {
+          toolResult = JSON.stringify({ error: `Unknown tool: ${toolName}` });
+        } else {
+          try {
+            const args = JSON.parse(tc.function.arguments || "{}") as Record<string, unknown>;
+            const params = tool.schema.parse(args);
+            const result = await tool.execute(params as never);
+            toolResult = JSON.stringify(result);
+          } catch (err) {
+            const msg = err instanceof Error ? err.message : String(err);
+            toolResult = JSON.stringify({ error: msg });
+          }
+        }
+        conversation.push({
+          role: "tool",
+          tool_call_id: tc.id,
+          content: toolResult,
+        });
+      }
+    }
+
+    return "Reached maximum tool-call iterations. Please try a simpler request.";
   }
 
   async refreshState(): Promise<void> {
+    if (this.usePg() && this.pgUserId) {
+      const [domainCount, domainsExpiringSoon, recentChangesList] = await Promise.all([
+        dbPg.countDomains(this.env, this.pgUserId, this.pgOrgId),
+        dbPg.countExpiringSoon(this.env, this.pgUserId, 30, this.pgOrgId),
+        dbPg.recentChanges(this.env, this.pgUserId, 10, this.pgOrgId),
+      ]);
+      await this.setState({
+        ...this.stateData,
+        domainCount: domainCount,
+        domainsExpiringSoon: domainsExpiringSoon,
+        recentChanges: recentChangesList,
+      });
+      return;
+    }
     await this.setState({
       ...this.stateData,
-      domainCount: countDomains(this.sql),
-      domainsExpiringSoon: countExpiringSoon(this.sql, 30),
-      recentChanges: recentChanges(this.sql, 10),
+      domainCount: 0,
+      domainsExpiringSoon: 0,
+      recentChanges: [],
     });
   }
 
   async addDomain(input: DomainOnboardingInput): Promise<Record<string, unknown>> {
+    this.requirePg();
     const domain = assertValidDomain(input.domain);
     const expiryDate = input.expiryDate ? toIsoDate(input.expiryDate) : undefined;
-    const existing = getDomainByName(this.sql, domain);
+    const existing = await dbPg.getDomainByName(this.env, this.pgUserId!, domain, this.pgOrgId);
     if (existing) return { ok: true, created: false, domain: existing };
-
-    const created = insertDomain(this.sql, {
+    const created = await dbPg.insertDomain(this.env, this.pgUserId!, {
       domain,
       registrar: input.registrar,
       expiryDate,
       notes: input.notes,
-    });
-
+    }, this.pgOrgId);
     if (expiryDate) await this.scheduleExpiryReminders(domain, expiryDate);
     await this.triggerDomainOnboardingWorkflow({ ...input, domain, expiryDate });
     await this.refreshState();
@@ -217,6 +453,7 @@ export class DomainPilotAgent {
     notes?: string | null;
     status?: "active" | "parked" | "for_sale" | "expired";
   }): Promise<Record<string, unknown>> {
+    this.requirePg();
     const domainName = assertValidDomain(input.domain);
     const expiryDate =
       input.expiryDate === undefined
@@ -224,12 +461,12 @@ export class DomainPilotAgent {
         : input.expiryDate === "" || input.expiryDate === null
           ? null
           : toIsoDate(input.expiryDate);
-    const updated = updateDomainDb(this.sql, domainName, {
+    const updated = await dbPg.updateDomain(this.env, this.pgUserId!, domainName, {
       registrar: input.registrar,
       expiryDate,
       notes: input.notes,
       status: input.status,
-    });
+    }, this.pgOrgId);
     if (!updated) throw new Error(`Domain not found: ${domainName}`);
     await this.refreshState();
     return { ok: true, domain: updated };
@@ -244,13 +481,14 @@ export class DomainPilotAgent {
     priority?: number;
     source?: "user" | "bulk_update" | "import";
   }): Promise<Record<string, unknown>> {
+    this.requirePg();
     const domainName = assertValidDomain(input.domain);
-    const domain = getDomainByName(this.sql, domainName);
-    if (!domain) throw new Error(`Domain not found: ${domainName}`);
     const value = assertValidRecordValue(input.type, input.value);
     const ttl = assertValidTtl(input.ttl);
     const priority = assertPriorityIfRequired(input.type, input.priority);
-    const upserted = upsertDnsRecord(this.sql, {
+    const domain = await dbPg.getDomainByName(this.env, this.pgUserId!, domainName, this.pgOrgId);
+    if (!domain) throw new Error(`Domain not found: ${domainName}`);
+    const upserted = await dbPg.upsertDnsRecord(this.env, this.pgUserId!, {
       domainId: domain.id,
       subdomain: input.subdomain ?? "",
       type: input.type,
@@ -258,7 +496,7 @@ export class DomainPilotAgent {
       ttl,
       priority,
     });
-    const change = insertChangeLog(this.sql, {
+    const change = await dbPg.insertChangeLog(this.env, this.pgUserId!, {
       domainId: domain.id,
       recordId: upserted.record.id,
       action: upserted.action,
@@ -266,28 +504,27 @@ export class DomainPilotAgent {
       oldValue: upserted.oldValue,
       newValue: upserted.record.value,
       source: input.source ?? "user",
-    });
+    }, this.pgOrgId);
     await this.indexChangeForSearch(change, domainName);
     await this.refreshState();
     return { ok: true, action: upserted.action, record: upserted.record };
   }
 
   async deleteDnsRecord(input: { domain: string; subdomain?: string; type: DnsRecordType }): Promise<Record<string, unknown>> {
+    this.requirePg();
     const domainName = assertValidDomain(input.domain);
-    const domain = getDomainByName(this.sql, domainName);
+    const domain = await dbPg.getDomainByName(this.env, this.pgUserId!, domainName, this.pgOrgId);
     if (!domain) throw new Error(`Domain not found: ${domainName}`);
-    const existing = findDnsRecord(this.sql, domain.id, input.subdomain ?? "", input.type);
+    const existing = await dbPg.findDnsRecord(this.env, this.pgUserId!, domain.id, input.subdomain ?? "", input.type);
     if (!existing) return { ok: true, deleted: false, message: "No record found." };
-
     const approved = await this.requestApproval({
       type: "delete_record",
       description: `Delete ${input.type} for ${(input.subdomain || "@")}.${domainName}`,
       details: { ...input, value: existing.value },
     });
     if (!approved) return { ok: true, deleted: false, message: "Deletion rejected." };
-
-    deleteDnsRecordById(this.sql, existing.id);
-    const change = insertChangeLog(this.sql, {
+    await dbPg.deleteDnsRecordById(this.env, this.pgUserId!, existing.id);
+    const change = await dbPg.insertChangeLog(this.env, this.pgUserId!, {
       domainId: domain.id,
       recordId: existing.id,
       action: "deleted",
@@ -295,7 +532,7 @@ export class DomainPilotAgent {
       oldValue: existing.value,
       newValue: null,
       source: "user",
-    });
+    }, this.pgOrgId);
     await this.indexChangeForSearch(change, domainName);
     await this.refreshState();
     return { ok: true, deleted: true };
@@ -306,26 +543,32 @@ export class DomainPilotAgent {
     filter?: "all" | "expiring_soon" | "ssl_issues" | "inactive";
     registrar?: string;
   }): Promise<Record<string, unknown>> {
-    const domains = queryDomainsDb(this.sql, input.query, input.filter, input.registrar);
+    this.requirePg();
+    const domains = await dbPg.queryDomains(this.env, this.pgUserId!, input.query, input.filter, input.registrar, this.pgOrgId);
     return { ok: true, count: domains.length, domains };
   }
 
   async getDnsRecords(input: { domain: string; recordType?: string }): Promise<Record<string, unknown>> {
+    this.requirePg();
     const domainName = assertValidDomain(input.domain);
-    const domain = getDomainByName(this.sql, domainName);
+    const domain = await dbPg.getDomainByName(this.env, this.pgUserId!, domainName, this.pgOrgId);
     if (!domain) throw new Error(`Domain not found: ${domainName}`);
-    return { ok: true, domain: domainName, records: getDnsRecordsForDomain(this.sql, domain.id, input.recordType) };
+    const records = await dbPg.getDnsRecordsForDomain(this.env, this.pgUserId!, domain.id, input.recordType);
+    return { ok: true, domain: domainName, records };
   }
 
   async getDnsHistoryTool(input: { domain: string; recordType?: string; limit?: number }): Promise<Record<string, unknown>> {
+    this.requirePg();
     const domainName = assertValidDomain(input.domain);
-    const domain = getDomainByName(this.sql, domainName);
+    const domain = await dbPg.getDomainByName(this.env, this.pgUserId!, domainName, this.pgOrgId);
     if (!domain) throw new Error(`Domain not found: ${domainName}`);
-    return { ok: true, history: getDnsHistory(this.sql, domain.id, input.recordType, input.limit ?? 20) };
+    const history = await dbPg.getDnsHistory(this.env, this.pgUserId!, domain.id, input.recordType, input.limit ?? 20);
+    return { ok: true, history };
   }
 
   async getAlerts(input: { limit?: number }): Promise<Record<string, unknown>> {
-    const alerts = listAlerts(this.sql, input.limit ?? 50);
+    this.requirePg();
+    const alerts = await dbPg.listAlerts(this.env, this.pgUserId!, input.limit ?? 50, this.pgOrgId);
     return { ok: true, alerts };
   }
 
@@ -337,7 +580,9 @@ export class DomainPilotAgent {
       const matches = await withRetry(async () => this.env.VECTORIZE.query(embedding.data[0], { topK: 8, returnMetadata: true }));
       return { ok: true, source: "vectorize", matches: matches.matches ?? [] };
     } catch {
-      const fallback = recentChanges(this.sql, 25).filter((item) =>
+      this.requirePg();
+      const fallbackList = await dbPg.recentChanges(this.env, this.pgUserId!, 25, this.pgOrgId);
+      const fallback = fallbackList.filter((item) =>
         `${item.record_type ?? ""} ${item.old_value ?? ""} ${item.new_value ?? ""}`.toLowerCase().includes(input.query.toLowerCase()),
       );
       return { ok: true, source: "sql-fallback", matches: fallback };
@@ -345,10 +590,12 @@ export class DomainPilotAgent {
   }
 
   async checkDomainHealthTool(input: { domain: string }): Promise<HealthReport> {
+    this.requirePg();
     const domainName = assertValidDomain(input.domain);
-    const domain = getDomainByName(this.sql, domainName);
-    if (!domain) throw new Error(`Domain not found: ${domainName}`);
-    const records = getDnsRecordsForDomain(this.sql, domain.id);
+    const d = await dbPg.getDomainByName(this.env, this.pgUserId!, domainName, this.pgOrgId);
+    if (!d) throw new Error(`Domain not found: ${domainName}`);
+    const domain = d;
+    const records = await dbPg.getDnsRecordsForDomain(this.env, this.pgUserId!, d.id);
     const findings: string[] = [];
     const expiry = domain.expiry_date ? daysUntil(domain.expiry_date) : null;
     const ssl = domain.ssl_expiry_date ? daysUntil(domain.ssl_expiry_date) : null;
@@ -412,19 +659,20 @@ export class DomainPilotAgent {
   }
 
   async runDailyHealthCheck(): Promise<{ checked: number; alerts: number }> {
-    const domains = listDomains(this.sql).filter((d) => d.status === "active");
+    this.requirePg();
+    const domains = (await dbPg.listDomains(this.env, this.pgUserId!, this.pgOrgId)).filter((d) => d.status === "active");
     let alerts = 0;
     for (const d of domains) {
       if (!d.expiry_date || !isWithinDays(d.expiry_date, 30)) continue;
       const days = daysUntil(d.expiry_date);
       const level = days <= 7 ? "critical_expiry" : "upcoming_expiry";
       const message = await this.generateAlert(d.domain, days, level);
-      const alert = insertScheduledAlert(this.sql, {
+      const alert = await dbPg.insertScheduledAlert(this.env, this.pgUserId!, {
         domainId: d.id,
         alertType: level,
         scheduledFor: nowIso(),
         message,
-      });
+      }, this.pgOrgId);
       await this.dispatchAlert(alert);
       alerts++;
     }
@@ -434,27 +682,32 @@ export class DomainPilotAgent {
   }
 
   async generateWeeklyDigest(): Promise<Record<string, unknown>> {
-    const domains = listDomains(this.sql);
+    this.requirePg();
+    const domains = await dbPg.listDomains(this.env, this.pgUserId!, this.pgOrgId);
+    const recentChangesList = await dbPg.recentChanges(this.env, this.pgUserId!, 10, this.pgOrgId);
     return {
       totalDomains: domains.length,
       expiringSoon: domains.filter((d) => d.expiry_date && isWithinDays(d.expiry_date, 30)).length,
-      recentChanges: recentChanges(this.sql, 10),
+      recentChanges: recentChangesList,
     };
   }
 
   async checkDnsPropagation(): Promise<{ checked: number }> {
-    return { checked: recentChanges(this.sql, 50).length };
+    this.requirePg();
+    const list = await dbPg.recentChanges(this.env, this.pgUserId!, 50, this.pgOrgId);
+    return { checked: list.length };
   }
 
   async sendRenewalReminder(payload: { domain: string; daysBefore: number }): Promise<{ ok: boolean }> {
-    const domain = getDomainByName(this.sql, payload.domain);
+    this.requirePg();
+    const domain = await dbPg.getDomainByName(this.env, this.pgUserId!, payload.domain, this.pgOrgId);
     if (!domain) return { ok: false };
-    const alert = insertScheduledAlert(this.sql, {
+    const alert = await dbPg.insertScheduledAlert(this.env, this.pgUserId!, {
       domainId: domain.id,
       alertType: "expiry_reminder",
       scheduledFor: nowIso(),
       message: `${payload.domain} expires in ${payload.daysBefore} days.`,
-    });
+    }, this.pgOrgId);
     await this.dispatchAlert(alert);
     return { ok: true };
   }
@@ -485,8 +738,9 @@ export class DomainPilotAgent {
     }
   }
 
-  async dispatchAlert(alert: ScheduledAlertRecord): Promise<void> {
-    markAlertSent(this.sql, alert.id);
+  async dispatchAlert(alert: dbPg.ScheduledAlertRecord): Promise<void> {
+    this.requirePg();
+    await dbPg.markAlertSent(this.env, this.pgUserId!, alert.id);
   }
 
   async indexChangeForSearch(change: ChangeLogEntry, domain: string): Promise<void> {

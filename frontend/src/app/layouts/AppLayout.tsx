@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Link, Outlet, useLocation } from 'react-router';
+import { Link, Navigate, Outlet, useLocation } from 'react-router';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   Radar,
@@ -14,13 +14,17 @@ import {
   X,
   MessageSquare,
   Briefcase,
+  Building2,
+  Users,
 } from 'lucide-react';
 import { cn, GlassPanel } from '../components/shared';
 import { useAuth } from '../auth/AuthContext';
+import { useOrg } from '../org/OrgContext';
 
 const NAV_ITEMS = [
   { name: 'Dashboard', icon: LayoutDashboard, path: '/app' },
   { name: 'Domains', icon: Globe, path: '/app/domains' },
+  { name: 'Clients', icon: Users, path: '/app/clients' },
   { name: 'DNS Records', icon: Server, path: '/app/dns' },
   { name: 'Chat', icon: MessageSquare, path: '/app/chat' },
   { name: 'History', icon: History, path: '/app/history' },
@@ -46,9 +50,14 @@ const SidebarContent = ({
 }) => {
   const location = useLocation();
   const { user } = useAuth();
+  const orgContext = useOrg();
+  const orgs = orgContext?.orgs ?? [];
+  const selectedOrgId = orgContext?.selectedOrgId ?? null;
+  const setSelectedOrgId = orgContext?.setSelectedOrgId;
   const displayName = user?.displayName || user?.email?.split('@')[0] || 'User';
   const userEmail = user?.email || '';
   const photoURL = user?.photoURL;
+  const selectedOrg = orgs.find((o) => o.id === selectedOrgId);
 
   return (
     <div className="flex flex-col h-full gap-6">
@@ -77,6 +86,28 @@ const SidebarContent = ({
           </button>
         )}
       </div>
+
+      {!isCollapsed && orgs.length > 1 && (
+        <div className="px-2">
+          <label className="text-xs text-white/40 uppercase tracking-wider px-2 block mb-1">Organization</label>
+          <select
+            value={selectedOrgId ?? ''}
+            onChange={(e) => setSelectedOrgId?.(e.target.value || null)}
+            className="w-full rounded-lg bg-white/5 border border-white/20 text-white/90 text-sm py-2 px-3 focus:outline-none focus:ring-2 focus:ring-white/40"
+          >
+            {orgs.map((o) => (
+              <option key={o.id} value={o.id} className="bg-neutral-900 text-white">
+                {o.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+      {isCollapsed && orgs.length > 1 && selectedOrg && (
+        <div className="flex justify-center" title={selectedOrg.name}>
+          <Building2 className="w-5 h-5 text-white/50" />
+        </div>
+      )}
 
       <GlassPanel className="flex-1 flex flex-col py-2 overflow-hidden" intensity="low">
         <div className="flex-1 space-y-1 p-2">
@@ -227,6 +258,8 @@ const MobileNav = ({ toggleSidebar }: { toggleSidebar: () => void }) => {
 // --- Layout ---
 
 export default function AppLayout() {
+  const { user, loading } = useAuth();
+  const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const sidebarCollapsed = false;
   const [isMobile, setIsMobile] = useState(false);
@@ -242,6 +275,17 @@ export default function AppLayout() {
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
+
+  if (loading) {
+    return (
+      <div className="w-full h-screen bg-black flex items-center justify-center">
+        <div className="text-white/60">Loading…</div>
+      </div>
+    );
+  }
+  if (!user) {
+    return <Navigate to="/login" state={{ from: location.pathname }} replace />;
+  }
 
   return (
     <div className="w-full h-screen bg-black text-[#E6EDF3] font-sans selection:bg-white/30 overflow-hidden flex flex-col lg:flex-row">

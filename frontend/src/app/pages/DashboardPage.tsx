@@ -4,6 +4,7 @@ import { Globe, ShieldCheck, CheckCircle2 } from 'lucide-react';
 import { GlassPanel, StatCard, ExpiringDomainRow, cn } from '../components/shared';
 import { getAgentState, postTool, type PendingAction, type ChangeLogEntry } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
+import { useOrg } from '../org/OrgContext';
 import { DEFAULT_DASHBOARD_STATS, type DashboardStats } from '../data/dashboardData';
 
 interface DomainRecord {
@@ -24,6 +25,7 @@ function daysUntil(expiryDate: string | null): number | null {
 export default function DashboardPage() {
   const navigate = useNavigate();
   const { idToken } = useAuth();
+  const orgId = useOrg()?.selectedOrgId ?? null;
   const [stats, setStats] = useState<DashboardStats>(DEFAULT_DASHBOARD_STATS);
   const [expiringDomains, setExpiringDomains] = useState<{ domain: string; days: number }[]>([]);
   const [pendingApprovals, setPendingApprovals] = useState<PendingAction[]>([]);
@@ -32,8 +34,8 @@ export default function DashboardPage() {
 
   const loadState = useCallback(() => {
     Promise.all([
-      getAgentState(idToken).catch(() => null),
-      postTool('queryDomains', { filter: 'expiring_soon' }, idToken).catch(() => null),
+      getAgentState(idToken, orgId).catch(() => null),
+      postTool('queryDomains', { filter: 'expiring_soon' }, idToken, orgId).catch(() => null),
     ]).then(([res, expiringRes]) => {
       if (res?.ok && res.state) {
         setStats({
@@ -57,7 +59,7 @@ export default function DashboardPage() {
         );
       }
     });
-  }, [idToken]);
+  }, [idToken, orgId]);
 
   useEffect(() => {
     loadState();
@@ -65,7 +67,7 @@ export default function DashboardPage() {
 
   const handleApproval = (approvalId: string, approved: boolean) => {
     setApprovalLoading(approvalId);
-    postTool('handleApprovalResponse', { approvalId, approved }, idToken)
+    postTool('handleApprovalResponse', { approvalId, approved }, idToken, orgId)
       .then(() => loadState())
       .catch(() => {})
       .finally(() => setApprovalLoading(null));

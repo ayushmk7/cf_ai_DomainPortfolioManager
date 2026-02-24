@@ -12,11 +12,13 @@ describe("tool contracts", () => {
         "bulkUpdate",
         "checkDomainHealth",
         "deleteDnsRecord",
+        "getAlerts",
         "getDnsHistory",
         "getDnsRecords",
         "handleApprovalResponse",
         "queryDomains",
         "searchHistory",
+        "updateDomain",
       ].sort(),
     );
   });

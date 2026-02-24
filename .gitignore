@@ -4,3 +4,4 @@ frontend/.env
 .env
 .env.local
 *.log
+backend/.wrangler
