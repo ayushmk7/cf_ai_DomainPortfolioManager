@@ -1,0 +1,7 @@
+{
+  "buildCommand": "npm run build -w domain-pilot-frontend",
+  "outputDirectory": "frontend/dist",
+  "installCommand": "npm install",
+  "framework": null,
+  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
+}

@@ -5,3 +5,4 @@ frontend/.env
 .env.local
 *.log
 backend/.wrangler
+.vercel

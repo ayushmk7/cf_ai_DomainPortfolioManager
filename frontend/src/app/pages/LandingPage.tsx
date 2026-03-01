@@ -73,8 +73,13 @@ export function LandingPage() {
         <div className="absolute top-[60%] left-[40%] w-[300px] h-[300px] bg-indigo-400/[0.04] rounded-full blur-[80px]" />
       </div>
 
+      {/* Frontend-only notice */}
+      <div className="fixed top-0 left-0 right-0 z-[60] bg-amber-500/90 text-black text-center py-1.5 px-4 text-sm font-medium">
+        Frontend-only demo — no backend. This showcases the UI and functionality only.
+      </div>
+
       {/* Nav */}
-      <nav className="fixed top-0 left-0 right-0 z-50 backdrop-blur-xl bg-black/70 border-b border-white/[0.06]">
+      <nav className="fixed top-12 left-0 right-0 z-50 backdrop-blur-xl bg-black/70 border-b border-white/[0.06]">
         <div className="max-w-6xl mx-auto flex items-center justify-between px-6 py-4">
           <Link
             to="/"
@@ -110,7 +115,7 @@ export function LandingPage() {
       </nav>
 
       {/* Hero */}
-      <section className="relative pt-36 pb-24 px-6">
+      <section className="relative pt-44 pb-24 px-6">
         <div className="max-w-4xl mx-auto text-center relative z-10">
           <motion.div
             initial={{ opacity: 0, y: 12 }}

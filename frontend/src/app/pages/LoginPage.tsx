@@ -77,7 +77,10 @@ export default function LoginPage() {
 
   if (!enabled) {
     return (
-      <div className="min-h-screen w-full bg-black text-[#E6EDF3] flex items-center justify-center p-6">
+      <div className="min-h-screen w-full bg-black text-[#E6EDF3] flex flex-col items-center justify-center p-6">
+        <div className="absolute top-0 left-0 right-0 bg-amber-500/90 text-black text-center py-1.5 px-4 text-sm font-medium">
+          Frontend-only demo — no backend. This showcases the UI and functionality only.
+        </div>
         <div className="max-w-sm w-full text-center space-y-6">
           <Link to="/" className="flex justify-center" aria-label="Back to home">
             <div className="relative flex items-center justify-center w-14 h-14 rounded-2xl bg-white/5 border border-white/20 hover:bg-white/10 transition-colors cursor-pointer">
@@ -167,7 +170,10 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen w-full bg-black text-[#E6EDF3] flex items-center justify-center p-6">
+    <div className="min-h-screen w-full bg-black text-[#E6EDF3] flex flex-col items-center justify-center p-6">
+      <div className="absolute top-0 left-0 right-0 bg-amber-500/90 text-black text-center py-1.5 px-4 text-sm font-medium">
+        Frontend-only demo — no backend. This showcases the UI and functionality only.
+      </div>
       <div className="max-w-sm w-full space-y-6">
         {/* Header */}
         <div className="text-center space-y-3">

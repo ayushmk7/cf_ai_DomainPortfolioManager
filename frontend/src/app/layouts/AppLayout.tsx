@@ -288,23 +288,29 @@ export default function AppLayout() {
   }
 
   return (
-    <div className="w-full h-screen bg-black text-[#E6EDF3] font-sans selection:bg-white/30 overflow-hidden flex flex-col lg:flex-row">
-      {isMobile && (
-        <MobileNav toggleSidebar={() => setSidebarOpen(true)} />
-      )}
+    <div className="w-full h-screen bg-black text-[#E6EDF3] font-sans selection:bg-white/30 overflow-hidden flex flex-col">
+      {/* Frontend-only notice */}
+      <div className="flex-shrink-0 bg-amber-500/90 text-black text-center py-1.5 px-4 text-sm font-medium z-50">
+        Frontend-only demo — no backend. This showcases the UI and functionality only.
+      </div>
+      <div className="flex-1 flex flex-col lg:flex-row min-h-0">
+        {isMobile && (
+          <MobileNav toggleSidebar={() => setSidebarOpen(true)} />
+        )}
 
-      <Sidebar
-        isOpen={sidebarOpen}
-        setIsOpen={setSidebarOpen}
-        isCollapsed={sidebarCollapsed}
-        isMobile={isMobile}
-      />
+        <Sidebar
+          isOpen={sidebarOpen}
+          setIsOpen={setSidebarOpen}
+          isCollapsed={sidebarCollapsed}
+          isMobile={isMobile}
+        />
 
-      <main className="flex-1 p-4 pt-0 lg:p-4 lg:pl-0 h-full max-w-[1600px] mx-auto overflow-hidden">
-        <div className="h-full overflow-y-auto custom-scrollbar pr-2 pb-6">
-          <Outlet />
-        </div>
-      </main>
+        <main className="flex-1 p-4 pt-0 lg:p-4 lg:pl-0 h-full max-w-[1600px] mx-auto overflow-hidden">
+          <div className="h-full overflow-y-auto custom-scrollbar pr-2 pb-6">
+            <Outlet />
+          </div>
+        </main>
+      </div>
 
 
       <style>{`
