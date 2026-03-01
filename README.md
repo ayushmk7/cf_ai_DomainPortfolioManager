@@ -45,9 +45,31 @@ This project is an AI-powered application on Cloudflare. Here is how each requir
 
 ## Deployment
 
-- **Frontend (Vercel)**  
-  - Connect the repo to Vercel and set **Root Directory** to `frontend`.  
-  - Add env var: `VITE_API_URL` = your backend URL (e.g. `https://domain-pilot.<account>.workers.dev`).
+### Frontend (Vercel)
+
+This repo is already set up for Vercel: root `vercel.json` builds the frontend (`npm run build -w domain-pilot-frontend`) and serves from `frontend/dist`. No need to set Root Directory to `frontend`; deploy from the **repo root**.
+
+**Connect GitHub so every push deploys:**
+
+1. Go to [vercel.com](https://vercel.com) and open your project **domain-portfolio-manager** (or create one).
+2. **Settings → Git** → Connect to **ayushmk7/cf_ai_DomainPortfolioManager** (or your fork).  
+   - If you deployed via CLI first, use "Connect Git Repository" and select the repo.  
+   - Branch: `main` (or your default). Every push to that branch will trigger a deploy.
+3. **Settings → General** → ensure **Root Directory** is empty (deploy from root; `vercel.json` defines build/output).
+
+**Optional env:** In Vercel → **Settings → Environment Variables**, add `VITE_API_URL` if you later connect a backend (e.g. `https://your-worker.workers.dev`).
+
+**Custom domain (your own link):**
+
+1. In Vercel: open the project → **Settings → Domains**.
+2. Click **Add** and enter your domain (e.g. `domainpilot.app` or `app.yoursite.com`).
+3. Vercel will show DNS records. Either:
+   - **Vercel DNS:** Add the nameservers it gives you at your registrar (e.g. Namecheap, GoDaddy) so Vercel manages DNS, or  
+   - **CNAME:** Add a CNAME record: name = `www` (or subdomain you want), value = `cname.vercel-dns.com`. For apex (e.g. `domainpilot.app`), use the A record Vercel shows.
+4. Wait for DNS to propagate (minutes to 48 hours). Vercel will auto-issue SSL.
+
+Your app will then be live at your custom URL (e.g. `https://domainpilot.app`). Free Vercel accounts get one free custom domain per project.
+
 - **Backend (Cloudflare)**  
   - From project root: `cd backend && npm run deploy`  
   - Or use your CI with Wrangler.  
