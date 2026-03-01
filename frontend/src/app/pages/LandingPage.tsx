@@ -1,4 +1,4 @@
-import { useNavigate, Link } from 'react-router';
+import { Link } from 'react-router';
 import { motion } from 'motion/react';
 import {
   Radar,
@@ -9,17 +9,15 @@ import {
   ShieldCheck,
   MessageSquare,
   Zap,
-  ArrowRight,
-  LayoutDashboard,
+  ChevronDown,
 } from 'lucide-react';
-import { useAuth } from '../auth/AuthContext';
 
 const FEATURES = [
   {
     icon: MessageSquare,
     title: 'Chat-First Interface',
     description:
-      'Manage DNS records with natural language. Just tell DomainPilot what to do — no forms, no dashboards to learn.',
+      'Manage DNS records with natural language. Just tell DomainPilot what to do, no forms or dashboards to learn.',
   },
   {
     icon: Globe,
@@ -37,7 +35,7 @@ const FEATURES = [
     icon: History,
     title: 'Change History & Audit',
     description:
-      'Every DNS change is logged with timestamps, old/new values, and source — searchable and exportable.',
+      'Every DNS change is logged with timestamps, old/new values, and source, searchable and exportable.',
   },
   {
     icon: Bell,
@@ -60,9 +58,6 @@ const HOW_IT_WORKS = [
 ];
 
 export function LandingPage() {
-  const navigate = useNavigate();
-  const { user, loading } = useAuth();
-
   return (
     <div className="min-h-screen w-full bg-black text-[#E6EDF3] font-sans overflow-x-hidden">
       {/* Background mesh */}
@@ -75,7 +70,7 @@ export function LandingPage() {
 
       {/* Frontend-only notice */}
       <div className="fixed top-0 left-0 right-0 z-[60] bg-amber-500/90 text-black text-center py-1.5 px-4 text-sm font-medium">
-        Frontend-only demo — no backend. This showcases the UI and functionality only.
+        Frontend-only demo, no backend. This showcases the UI and functionality only.
       </div>
 
       {/* Nav */}
@@ -91,26 +86,12 @@ export function LandingPage() {
             </div>
             <span className="text-lg font-medium tracking-tight text-white">DomainPilot</span>
           </Link>
-          <div className="flex items-center gap-3">
-            {!loading && user ? (
-              <>
-                <Link
-                  to="/app"
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white text-black text-sm font-medium hover:bg-white/90 transition-all shadow-[0_0_20px_rgba(255,255,255,0.15)]"
-                >
-                  <LayoutDashboard className="w-4 h-4" />
-                  Dashboard
-                </Link>
-              </>
-            ) : (
-              <button
-                onClick={() => navigate('/login')}
-                className="text-sm text-white/60 hover:text-white transition-colors px-3 py-2 rounded-lg hover:bg-white/5"
-              >
-                Sign In
-              </button>
-            )}
-          </div>
+          <a
+            href="#features"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white text-black text-sm font-medium hover:bg-white/90 transition-all shadow-[0_0_20px_rgba(255,255,255,0.15)]"
+          >
+            See Dashboard and Features
+          </a>
         </div>
       </nav>
 
@@ -145,35 +126,44 @@ export function LandingPage() {
             className="text-lg md:text-xl text-white/50 max-w-2xl mx-auto leading-relaxed mb-12"
           >
             DomainPilot is an AI-powered domain and DNS portfolio manager. Chat to configure records,
-            track expiry and SSL status, get proactive alerts, and approve changes — all in one interface.
+            track expiry and SSL status, get proactive alerts, and approve changes, all in one interface.
           </motion.p>
           <motion.div
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.3 }}
-            className="flex flex-col sm:flex-row items-center justify-center gap-4"
+            className="flex flex-col items-center justify-center gap-4"
           >
-            <button
-              onClick={() => navigate(user ? '/app' : '/login')}
-              className="px-8 py-4 rounded-xl bg-white text-black font-semibold shadow-[0_0_40px_rgba(255,255,255,0.25)] hover:shadow-[0_0_50px_rgba(255,255,255,0.35)] hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center gap-2"
+            <a
+              href="#features"
+              className="px-8 py-4 rounded-xl bg-white text-black font-semibold shadow-[0_0_40px_rgba(255,255,255,0.25)] hover:shadow-[0_0_50px_rgba(255,255,255,0.35)] hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center gap-2 scroll-smooth"
             >
-              {user ? 'Go to Dashboard' : 'Get Started'}
-              <ArrowRight className="w-4 h-4" />
-            </button>
-            {!user && (
-              <button
-                onClick={() => navigate('/login')}
-                className="px-8 py-4 rounded-xl bg-white/5 border border-white/15 text-white/90 font-medium hover:bg-white/10 hover:border-white/20 transition-all"
-              >
-                Sign In
-              </button>
-            )}
+              See Dashboard and Features
+              <ChevronDown className="w-5 h-5" />
+            </a>
           </motion.div>
+          <motion.a
+            href="#features"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.6 }}
+            className="absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 text-white/50 hover:text-white/80 transition-colors cursor-pointer"
+            aria-label="Scroll to features"
+          >
+            <span className="text-xs font-medium">Scroll to see features</span>
+            <motion.span
+              animate={{ y: [0, 6, 0] }}
+              transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut' }}
+              className="inline-flex"
+            >
+              <ChevronDown className="w-8 h-8" strokeWidth={2} />
+            </motion.span>
+          </motion.a>
         </div>
       </section>
 
       {/* Features Grid */}
-      <section className="relative py-24 px-6">
+      <section id="features" className="relative py-24 px-6 scroll-mt-20">
         <div className="max-w-6xl mx-auto">
           <motion.div
             initial={{ opacity: 0, y: 16 }}
@@ -186,7 +176,7 @@ export function LandingPage() {
               Everything you need for domain management
             </h2>
             <p className="text-white/45 max-w-xl mx-auto text-lg">
-              From DNS configuration to expiry alerts — manage your entire domain portfolio with AI assistance.
+              From DNS configuration to expiry alerts, manage your entire domain portfolio with AI assistance.
             </p>
           </motion.div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -244,7 +234,7 @@ export function LandingPage() {
         </div>
       </section>
 
-      {/* Why DomainPilot — Comparison */}
+      {/* Why DomainPilot comparison */}
       <section className="relative py-24 px-6 border-t border-white/[0.06]">
         <div className="max-w-5xl mx-auto">
           <motion.div
@@ -280,49 +270,49 @@ export function LandingPage() {
                   <td className="px-4 py-3 text-white/40">No</td>
                   <td className="px-4 py-3 text-white/40">No (one per registrar)</td>
                   <td className="px-4 py-3 text-white/40">Often single provider</td>
-                  <td className="px-4 py-3 text-white">Yes — all providers and clients in one place</td>
+                  <td className="px-4 py-3 text-white">Yes, all providers and clients in one place</td>
                 </tr>
                 <tr>
                   <td className="px-4 py-3 text-white/70 font-medium">AI / natural language</td>
                   <td className="px-4 py-3 text-white/40">No</td>
                   <td className="px-4 py-3 text-white/40">No</td>
                   <td className="px-4 py-3 text-white/40">Rare</td>
-                  <td className="px-4 py-3 text-white">Yes — chat to manage DNS and domains</td>
+                  <td className="px-4 py-3 text-white">Yes, chat to manage DNS and domains</td>
                 </tr>
                 <tr>
                   <td className="px-4 py-3 text-white/70 font-medium">Cross-provider sync</td>
                   <td className="px-4 py-3 text-white/40">Manual</td>
                   <td className="px-4 py-3 text-white/40">N/A</td>
                   <td className="px-4 py-3 text-white/40">Usually single</td>
-                  <td className="px-4 py-3 text-white">Yes — Cloudflare and more; drift detection</td>
+                  <td className="px-4 py-3 text-white">Yes, Cloudflare and more; drift detection</td>
                 </tr>
                 <tr>
                   <td className="px-4 py-3 text-white/70 font-medium">Client / portfolio view</td>
                   <td className="px-4 py-3 text-white/40">Manual</td>
                   <td className="px-4 py-3 text-white/40">No</td>
                   <td className="px-4 py-3 text-white/40">No</td>
-                  <td className="px-4 py-3 text-white">Yes — clients, reports, per-client domains</td>
+                  <td className="px-4 py-3 text-white">Yes, clients, reports, per-client domains</td>
                 </tr>
                 <tr>
                   <td className="px-4 py-3 text-white/70 font-medium">Expiry and SSL alerts</td>
                   <td className="px-4 py-3 text-white/40">Manual</td>
                   <td className="px-4 py-3 text-white/40">Per-registrar</td>
                   <td className="px-4 py-3 text-white/40">Varies</td>
-                  <td className="px-4 py-3 text-white">Yes — proactive alerts and digest</td>
+                  <td className="px-4 py-3 text-white">Yes, proactive alerts and digest</td>
                 </tr>
                 <tr>
                   <td className="px-4 py-3 text-white/70 font-medium">Audit and approval</td>
                   <td className="px-4 py-3 text-white/40">Manual</td>
                   <td className="px-4 py-3 text-white/40">Limited</td>
                   <td className="px-4 py-3 text-white/40">Varies</td>
-                  <td className="px-4 py-3 text-white">Yes — change history, approval workflows</td>
+                  <td className="px-4 py-3 text-white">Yes, change history, approval workflows</td>
                 </tr>
                 <tr>
                   <td className="px-4 py-3 text-white/70 font-medium">Team and RBAC</td>
                   <td className="px-4 py-3 text-white/40">No</td>
                   <td className="px-4 py-3 text-white/40">Limited</td>
                   <td className="px-4 py-3 text-white/40">Sometimes</td>
-                  <td className="px-4 py-3 text-white">Yes — orgs, roles, invitations</td>
+                  <td className="px-4 py-3 text-white">Yes, orgs, roles, invitations</td>
                 </tr>
               </tbody>
             </table>
