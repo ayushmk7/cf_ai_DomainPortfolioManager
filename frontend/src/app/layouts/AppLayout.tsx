@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Link, Navigate, Outlet, useLocation } from 'react-router';
+import { Link, Outlet, useLocation } from 'react-router';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   Radar,
@@ -283,15 +283,13 @@ export default function AppLayout() {
       </div>
     );
   }
-  if (!user) {
-    return <Navigate to="/login" state={{ from: location.pathname }} replace />;
-  }
+  // No login required: show dashboard to everyone (frontend-only demo)
 
   return (
     <div className="w-full h-screen bg-black text-[#E6EDF3] font-sans selection:bg-white/30 overflow-hidden flex flex-col">
       {/* Frontend-only notice */}
       <div className="flex-shrink-0 bg-amber-500/90 text-black text-center py-1.5 px-4 text-sm font-medium z-50">
-        Frontend-only demo — no backend. This showcases the UI and functionality only.
+        Frontend-only demo, no backend. This showcases the UI and functionality only.
       </div>
       <div className="flex-1 flex flex-col lg:flex-row min-h-0">
         {isMobile && (

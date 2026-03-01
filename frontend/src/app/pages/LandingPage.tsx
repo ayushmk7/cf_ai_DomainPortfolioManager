@@ -1,4 +1,4 @@
-import { Link } from 'react-router';
+import { Link, useNavigate } from 'react-router';
 import { motion } from 'motion/react';
 import {
   Radar,
@@ -10,6 +10,7 @@ import {
   MessageSquare,
   Zap,
   ChevronDown,
+  ArrowRight,
 } from 'lucide-react';
 
 const FEATURES = [
@@ -58,6 +59,7 @@ const HOW_IT_WORKS = [
 ];
 
 export function LandingPage() {
+  const navigate = useNavigate();
   return (
     <div className="min-h-screen w-full bg-black text-[#E6EDF3] font-sans overflow-x-hidden">
       {/* Background mesh */}
@@ -86,12 +88,13 @@ export function LandingPage() {
             </div>
             <span className="text-lg font-medium tracking-tight text-white">DomainPilot</span>
           </Link>
-          <a
-            href="#features"
+          <button
+            type="button"
+            onClick={() => navigate('/app')}
             className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white text-black text-sm font-medium hover:bg-white/90 transition-all shadow-[0_0_20px_rgba(255,255,255,0.15)]"
           >
-            See Dashboard and Features
-          </a>
+            See Dashboard
+          </button>
         </div>
       </nav>
 
@@ -132,33 +135,33 @@ export function LandingPage() {
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.3 }}
-            className="flex flex-col items-center justify-center gap-4"
+            className="flex flex-col items-center justify-center gap-6"
           >
-            <a
+            <Link
+              to="/app"
+              className="px-8 py-4 rounded-xl bg-white text-black font-semibold shadow-[0_0_40px_rgba(255,255,255,0.25)] hover:shadow-[0_0_50px_rgba(255,255,255,0.35)] hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center gap-2"
+            >
+              See Dashboard
+              <ArrowRight className="w-5 h-5" aria-hidden />
+            </Link>
+            <motion.a
               href="#features"
-              className="px-8 py-4 rounded-xl bg-white text-black font-semibold shadow-[0_0_40px_rgba(255,255,255,0.25)] hover:shadow-[0_0_50px_rgba(255,255,255,0.35)] hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center gap-2 scroll-smooth"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.5 }}
+              className="flex flex-col items-center gap-2 text-white/50 hover:text-white/80 transition-colors cursor-pointer"
+              aria-label="Scroll to features"
             >
-              See Dashboard and Features
-              <ChevronDown className="w-5 h-5" />
-            </a>
+              <span className="text-xs font-medium">Or scroll to see features</span>
+              <motion.span
+                animate={{ y: [0, 6, 0] }}
+                transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut' }}
+                className="inline-flex"
+              >
+                <ChevronDown className="w-8 h-8" strokeWidth={2} />
+              </motion.span>
+            </motion.a>
           </motion.div>
-          <motion.a
-            href="#features"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.6 }}
-            className="absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 text-white/50 hover:text-white/80 transition-colors cursor-pointer"
-            aria-label="Scroll to features"
-          >
-            <span className="text-xs font-medium">Scroll to see features</span>
-            <motion.span
-              animate={{ y: [0, 6, 0] }}
-              transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut' }}
-              className="inline-flex"
-            >
-              <ChevronDown className="w-8 h-8" strokeWidth={2} />
-            </motion.span>
-          </motion.a>
         </div>
       </section>
 
